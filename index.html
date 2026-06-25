@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Memories Unlocked</title>
+  <style>
+    /* ============================
+       Global / Reset / Accessibility
+       ============================ */
+    :root{
+      --sky:#5BA4CF;
+      --sky-dark:#3D7EAA;
+      --sky-light:#A8D8EA;
+      --muted:#5a6a7a;
+      --bg:#E8F4FD;
+      --bg2:#D6EEF8;
+      --card-bg:#FFFFFF;
+      --card-shadow: 0 6px 16px rgba(91,164,207,0.15);
+      --restart-col: #c9e4de;
+      --close-grey:  #dce6ec;
+      --continue-green: #5ba47e;
+      --text-main: #1e3a4f;
+    }
+    * { box-sizing: border-box; }
+    html,body { height:100%; margin:0; padding:0; background:linear-gradient(160deg,var(--bg),var(--bg2)); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-font-smoothing:antialiased; color:var(--text-main);}
+    button { font-family: inherit; }
+    .hidden-visually { position:absolute !important; left:-9999px !important; width:1px !important; height:1px !important; overflow:hidden !important; }
+
+    /* ============================
+       Level selector
+       ============================ */
+    .level-selector { text-align:center; margin: 20px auto 4px; }
+    .level-btn {
+      display:inline-block; margin:0 8px; padding:10px 18px; border-radius: 22px; border:none; color:#fff; font-weight:700; cursor:pointer;
+      background: var(--sky); box-shadow: 0 3px 12px rgba(91,164,207,0.22);
+      transition: background .18s, transform .12s;
+    }
+    .level-btn:hover { background: var(--sky-dark); }
+    .level-btn.locked { background:#b8c9d4; cursor:not-allowed; opacity:0.85; }
+    .level-btn.active { background:var(--sky-dark); }
+
+    /* ============================
+       Containers
+       ============================ */
+    .container {
+      max-width: 520px; margin: 14px auto 28px; background:var(--card-bg); border-radius: 18px; padding: 22px;
+      box-shadow: 0 8px 28px rgba(91,164,207,0.12); border:1px solid rgba(91,164,207,0.1);
+    }
+    h1 { text-align:center; margin:6px 0 10px; color:var(--sky-dark); font-size:1.4rem; }
+    p.description { text-align:center; color:var(--muted); margin:8px 0 14px; }
+
+    /* ============================
+       Level 1 — falling items
+       ============================ */
+    #gameArea {
+      position:relative; height:324px; border-radius:14px;
+      background: linear-gradient(180deg,#f7fbff,#ddeef9); border:2px dashed var(--sky-light); overflow:hidden;
+    }
+    .basket {
+      position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+      width:122px; height:64px; border-radius:28px;
+      background: linear-gradient(135deg,var(--sky-light),var(--sky));
+      display:flex; align-items:center; justify-content:center; font-size:36px; box-shadow:var(--card-shadow);
+      user-select:none;
+    }
+    .falling-item { position:absolute; font-size:32px; pointer-events:none; user-select:none; }
+
+    .progress-bar { margin-top:14px; height:14px; background:#d6eaf5; border-radius:12px; overflow:hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);}
+    .progress-fill { height:100%; width:0%; background: linear-gradient(90deg,var(--sky),var(--sky-light)); border-radius:12px; transition:width .28s ease; }
+
+    .info { margin-top:12px; font-weight:600; text-align:center; color:var(--sky-dark); }
+
+    /* ============================
+       Modal (common)
+       ============================ */
+    .modal-overlay {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background: rgba(20,35,50,0.78); padding:12px; box-sizing:border-box; visibility:hidden; opacity:0; transition:opacity .25s ease;
+      z-index:40;
+    }
+    .modal-overlay.show { visibility:visible; opacity:1; }
+    .modal {
+      background:white; border-radius:18px; padding:28px 26px; max-width:92vw; text-align:center;
+      box-shadow:0 8px 32px rgba(91,164,207,0.18); border:1px solid rgba(91,164,207,0.12);
+    }
+    .modal h2 { margin:0 0 8px; color:var(--sky-dark); font-size:1.4rem; }
+    .modal p { margin:6px 0 14px; color:#3a5a70; }
+    .modal-secret { font-weight:900; color:var(--sky-dark); font-size:1.4rem; margin-bottom:18px; user-select:all; }
+
+    @keyframes continueIn {
+      0% { opacity:0; transform: translateY(12px) scale(.98); }
+      60% { opacity:1; transform: translateY(-6px) scale(1.03); }
+      100% { opacity:1; transform: translateY(0) scale(1); }
+    }
+    .btn { padding:12px 20px; border-radius:22px; border:none; cursor:pointer; font-weight:700; transition: transform .1s; }
+    .btn:active { transform: scale(.97); }
+    .btn-close { background: var(--close-grey); color:#2a3d4a; }
+    .btn-restart { background: var(--restart-col); color:#1a3d32; }
+    .btn-continue { background: var(--continue-green); color:white; animation: continueIn .55s ease both; }
+
+    /* ============================
+       Level 2 — 5×5 grid
+       ============================ */
+    .info-2 { font-weight:600; text-align:center; margin:6px 0 10px; color:var(--muted); }
+    #timer { color:var(--sky-dark); font-weight:700; }
+    #score { color:var(--sky-dark); font-weight:700; }
+    #message { text-align:center; margin:10px 0 18px; color:#2e5a78; font-weight:700; min-height:24px; }
+
+    #grid {
+      display:grid; gap:12px; padding:10px; width:100%; margin-top:6px;
+      grid-template-columns: repeat(5, 1fr);
+      justify-items:stretch;
+    }
+    .card {
+      aspect-ratio: 1 / 1;
+      border-radius:14px;
+      display:flex; align-items:center; justify-content:center; font-weight:900; font-size:22px; cursor:pointer;
+      user-select:none; box-shadow: 0 4px 10px rgba(91,164,207,0.1); transition: transform .15s ease, opacity .25s ease;
+    }
+    .card:hover:not(.matched) { transform: scale(1.05); }
+    .card.matched { opacity:.4; cursor:default; box-shadow:none; }
+
+    /* Pastel palette — blue/teal/sage/lavender/mint: cute but unisex */
+    .c-pink   { background:#A8D8EA; }   /* sky blue  → 🐈 */
+    .c-green  { background:#B8E0D2; }   /* sage mint → 🍝 */
+    .c-blue   { background:#C9E4DE; }   /* teal mint → 🍦 */
+    .c-purple { background:#D4C5E2; }   /* lavender  → 🍰 */
+    .c-yellow { background:#FFF3C4; color:#4b3a0a; } /* soft yellow → 🧸→🍮 */
+
+    .fade-out { transition: opacity 240ms ease, transform 240ms ease; opacity:0; transform:scale(.94); }
+
+    /* ============================
+       Level 3 — memory sets
+       ============================ */
+    .level3-grid { display:grid; gap:12px; justify-items:center; margin-top:6px; }
+    .card-small { width:86px; height:86px; border-radius:14px; box-shadow:0 4px 12px rgba(91,164,207,0.1); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:2.2rem; user-select:none; }
+    .card-inner { width:100%; height:100%; border-radius:14px; display:flex; align-items:center; justify-content:center; font-weight:700; transition:background .2s; }
+    .pink3  { background:#A8D8EA; }   /* sky blue   → 🐈 */
+    .blue3  { background:#B8E0D2; }   /* sage mint  → 🍝 */
+    .green3 { background:#C9E4DE; }   /* teal       → 🍦 */
+    .beige3 { background:#D6EEF8; color:#D6EEF8; }
+    .card-small.matched { outline:3px solid var(--sky); opacity:.7; cursor:default; }
+
+    @media (max-width:520px) {
+      .container { margin:10px; padding:14px; border-radius:12px; }
+      .card { font-size:18px; border-radius:12px; }
+      .card-small { width:72px; height:72px; font-size:1.8rem; }
+      #grid { gap:10px; }
+    }
+
+    /* ============================
+       Final Stage
+       ============================ */
+    #finalStageOverlay {
+      position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+      background: rgba(10,20,30,0.80); z-index: 90; padding: 20px;
+    }
+    #finalStageContent {
+      position: relative; max-width: 880px; width: calc(100% - 40px);
+      display:flex; gap:20px; align-items: flex-start; justify-content: center;
+      flex-direction: column; color: var(--text-main); pointer-events: auto;
+    }
+    #finalImage {
+      width: 320px; max-width: 46%; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.30);
+      background: linear-gradient(135deg,#f7fbff,#ddeef9);
+      display:block; user-select:none; cursor:pointer; align-self:center;
+    }
+    .heart-effect {
+      position: absolute; font-size: 26px; pointer-events:none; transform-origin:center;
+      animation: heartPop 900ms ease-out forwards; z-index: 95;
+    }
+    @keyframes heartPop {
+      0% { transform: translate(-50%,-50%) scale(.8) rotate(-12deg); opacity:1; }
+      60% { transform: translate(-50%,-120%) scale(1.4) rotate(6deg); opacity:.9; }
+      100% { transform: translate(-50%,-240%) scale(1.6) rotate(18deg); opacity:0; filter: blur(2px); }
+    }
+    #finalLetterBox {
+      max-height: 64vh; overflow:auto; padding: 18px;
+      background: rgba(255,255,255,0.98); border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(91,164,207,0.15);
+      flex: 1 1 48%; font-family: "Courier New", Courier, monospace;
+      font-size: 16px; line-height: 1.6; color: var(--text-main);
+      white-space: pre-wrap; display: none;
+      border: 1px solid rgba(91,164,207,0.18);
+    }
+    .typewriter-caret {
+      display:inline-block; width:8px; background:var(--sky-dark); margin-left:3px;
+      animation: blinkCaret 900ms steps(1) infinite; height:1.1em; vertical-align: bottom;
+    }
+    @keyframes blinkCaret { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+
+    .petal {
+      position: fixed; top: -40px; font-size: 22px; pointer-events:none; opacity: 0.92;
+      transform-origin: center; animation: petalFall linear forwards; z-index: 85;
+      filter: drop-shadow(0 2px 6px rgba(91,164,207,0.18));
+    }
+    @keyframes petalFall {
+      0% { transform: translateY(-10vh) rotate(0deg) translateX(0); opacity:1; }
+      100% { transform: translateY(110vh) rotate(720deg) translateX(30vw); opacity:0; }
+    }
+
+    /* ============================
+       Music control
+       ============================ */
+    #musicControl {
+      position: fixed; right: 18px; bottom: 18px; z-index: 120;
+      background: rgba(255,255,255,0.95); padding: 10px 14px; border-radius: 999px;
+      box-shadow: 0 4px 18px rgba(91,164,207,0.18); display:flex; gap:8px; align-items:center;
+      border: 1px solid rgba(91,164,207,0.15);
+    }
+    #musicControl button { background: var(--sky); color: white; border:none; padding:8px 12px; border-radius: 999px; font-weight:700; cursor:pointer; transition: background .15s; }
+    #musicControl button:hover { background: var(--sky-dark); }
+    #musicControl button:active { transform:scale(.97); }
+    #musicStatus { font-size:13px; color:var(--sky-dark); font-weight:700; margin-left:4px; }
+  </style>
+</head>
+<body>
+  <!-- Level selector -->
+  <div class="level-selector" aria-hidden="true">
+    <button id="sel1" class="level-btn active">Level 1</button>
+    <button id="sel2" class="level-btn locked" disabled>Level 2 <span class="lock-icon">🔒</span></button>
+    <button id="sel3" class="level-btn locked" disabled>Level 3 <span class="lock-icon">🔒</span></button>
+  </div>
+
+  <!-- ============================
+       LEVEL 1
+       ============================ -->
+  <section id="level1" class="container" aria-label="Level 1 - Catch items">
+    <h1>Sweet Quest: Level 1</h1>
+    <p class="description">Catch the falling items into your basket! Catch <strong id="targetCount">25</strong> items to win.</p>
+    <div id="gameArea" aria-live="polite" aria-label="Game playing area">
+      <div id="basket" class="basket" role="img" aria-roledescription="catcher">🧺</div>
+    </div>
+    <div class="progress-bar" aria-label="Progress">
+      <div id="progressFill" class="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="info" id="infoLevel1">Items left to catch: <span id="itemsLeft">25</span></div>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
+      <button id="restartLevel1" class="btn btn-restart" style="display:none;">Restart Level</button>
+    </div>
+  </section>
+
+  <!-- Modal Level 1 -->
+  <div id="modal1" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal1Title">
+    <div class="modal">
+      <h2 id="modal1Title">Congratulations! 🎉</h2>
+      <p id="modal1Desc">You caught all the items! Here's your secret key:</p>
+      <div class="modal-secret" id="secretKey1">KEY LEVEL 1 ⭐</div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button id="closeModal1" class="btn btn-close">Close</button>
+        <button id="continueTo2" class="btn btn-continue" style="display:none;">Continue to Level 2</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       LEVEL 2
+       ============================ -->
+  <section id="level2" class="container" aria-label="Level 2 - Color match" style="display:none;">
+    <h1>Sweet Quest: Level 2</h1>
+    <div class="info-2">Time left: <span id="timer">60</span>s &nbsp;|&nbsp; Score: <span id="score">0</span></div>
+    <div id="message" aria-live="polite"></div>
+    <div id="grid" role="grid" aria-label="Color cards grid" tabindex="0"></div>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
+      <button id="restartLevel2" class="btn btn-restart" style="display:none;">Restart Level</button>
+    </div>
+  </section>
+
+  <!-- Modal Level 2 -->
+  <div id="modal2" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal2Title" style="display:none;">
+    <div class="modal">
+      <h2 id="modal2Title">You Win! 🏆</h2>
+      <p id="modal2Desc">Here's your secret key for Level 2:</p>
+      <div class="modal-secret" id="secretKey2">KEY LEVEL 2 🍦</div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button id="closeModal2" class="btn btn-close">Close</button>
+        <button id="continueTo3" class="btn btn-continue" style="display:none;">Continue to Level 3</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       LEVEL 3
+       ============================ -->
+  <section id="level3" class="container" aria-label="Level 3 - Memory sets" style="display:none;">
+    <h1>Sweet Quest: Level 3</h1>
+    <div class="timer" id="timerDisplay">Time Left: 25s</div>
+    <div class="info" id="infoText3">Memorize the emojis!</div>
+    <div id="gameGrid" class="level3-grid" style="grid-template-columns: repeat(3,1fr);"></div>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">
+      <button id="restartLevel3" class="btn btn-restart" style="display:none;">Restart Level</button>
+    </div>
+  </section>
+
+  <!-- Modal Level 3 -->
+  <div id="modal3" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
+    <div class="modal">
+      <h2>You Did It! 🎊</h2>
+      <p>All sets found! Here's your secret key:</p>
+      <div class="modal-secret" id="secretKey3">SECRET LEVEL 3 🐈</div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button id="closeModal3" class="btn btn-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
+       FINAL STAGE OVERLAY
+       ============================ -->
+  <div id="finalStageOverlay" aria-hidden="true">
+    <div id="finalStageContent" role="dialog" aria-modal="true" aria-label="Final Stage">
+      <img id="finalImage" src="final_image.png" alt="Final Surprise - click me 20x" />
+      <div id="finalLetterBox" tabindex="0" aria-label="Secret Letter"></div>
+    </div>
+  </div>
+
+  <!-- Music control -->
+  <div id="musicControl" title="Music control">
+    <button id="toggleMusicBtn">Play Music</button>
+    <div id="musicStatus">Music: Off</div>
+  </div>
+  <audio id="bgMusic" src="1000x.mp3" loop preload="auto"></audio>
+
+  <script>
+    /* ============================================================
+       FLOW CONTROLLER
+       ============================================================ */
+    (function(){
+      const selBtn1 = document.getElementById('sel1');
+      const selBtn2 = document.getElementById('sel2');
+      const selBtn3 = document.getElementById('sel3');
+      const section1 = document.getElementById('level1');
+      const section2 = document.getElementById('level2');
+      const section3 = document.getElementById('level3');
+      let isLevel2Unlocked = false;
+      let isLevel3Unlocked = false;
+
+      function showLevel(n){
+        section1.style.display = 'none';
+        section2.style.display = 'none';
+        section3.style.display = 'none';
+        selBtn1.classList.remove('active');
+        selBtn2.classList.remove('active');
+        selBtn3.classList.remove('active');
+        if(n===1){ section1.style.display=''; selBtn1.classList.add('active'); if(window.resetLevel1) window.resetLevel1(); }
+        if(n===2){ if(!isLevel2Unlocked) return; section2.style.display=''; selBtn2.classList.add('active'); if(window.resetLevel2) window.resetLevel2(); }
+        if(n===3){ if(!isLevel3Unlocked) return; section3.style.display=''; selBtn3.classList.add('active'); if(window.resetLevel3) window.resetLevel3(); }
+      }
+      window.showLevel = showLevel;
+
+      selBtn1.addEventListener('click', ()=> showLevel(1));
+      selBtn2.addEventListener('click', ()=> { if(isLevel2Unlocked) showLevel(2); });
+      selBtn3.addEventListener('click', ()=> { if(isLevel3Unlocked) showLevel(3); });
+
+      window.unlockLevel2 = function(){
+        isLevel2Unlocked = true;
+        selBtn2.classList.remove('locked'); selBtn2.disabled = false;
+        const ic = selBtn2.querySelector('.lock-icon'); if(ic) ic.remove();
+      };
+      window.unlockLevel3 = function(){
+        isLevel3Unlocked = true;
+        selBtn3.classList.remove('locked'); selBtn3.disabled = false;
+        const ic = selBtn3.querySelector('.lock-icon'); if(ic) ic.remove();
+      };
+
+      showLevel(1);
+    })();
+
+    /* ============================================================
+       BACKGROUND MUSIC
+       ============================================================ */
+    (function(){
+      const audio = document.getElementById('bgMusic');
+      const btn = document.getElementById('toggleMusicBtn');
+      const status = document.getElementById('musicStatus');
+      let musicPlaying = false;
+      let triedAutoplay = false;
+
+      function updateUI(){ btn.textContent = musicPlaying ? 'Pause Music' : 'Play Music'; status.textContent = 'Music: ' + (musicPlaying ? 'On' : 'Off'); }
+      function playMusic(){ if(!audio) return; audio.play().then(()=>{ musicPlaying=true; updateUI(); }).catch(()=>{ musicPlaying=false; updateUI(); }); }
+      function pauseMusic(){ if(!audio) return; audio.pause(); musicPlaying=false; updateUI(); }
+
+      btn.addEventListener('click', ()=>{ if(musicPlaying) pauseMusic(); else playMusic(); });
+
+      function playOnFirstGesture(){ if(triedAutoplay) return; triedAutoplay=true; playMusic(); ['click','touchstart','keydown'].forEach(ev=> window.removeEventListener(ev,playOnFirstGesture)); }
+      ['click','touchstart','keydown'].forEach(ev=> window.addEventListener(ev, playOnFirstGesture, {once:true, passive:true}));
+
+      window.playGameMusic = playMusic;
+      window.pauseGameMusic = pauseMusic;
+      window.isMusicPlaying = ()=> musicPlaying;
+      updateUI();
+    })();
+
+    /* ============================================================
+       LEVEL 1 — catching falling items
+       ============================================================ */
+    (function(){
+      const TARGET_COUNT = 25;
+      const gameArea = document.getElementById('gameArea');
+      const basket   = document.getElementById('basket');
+      const progressFill = document.getElementById('progressFill');
+      const itemsLeftNode = document.getElementById('itemsLeft');
+      const modal1Overlay = document.getElementById('modal1');
+      const closeModal1Btn = document.getElementById('closeModal1');
+      const continueTo2Btn = document.getElementById('continueTo2');
+      const restartLevel1Btn = document.getElementById('restartLevel1');
+
+      let caughtCount = 0;
+      let spawnedItems = [];
+      let spawnTimerId = null;
+      let rafId = null;
+      let isPaused = false;
+
+      const liveRegion = document.createElement('div');
+      liveRegion.setAttribute('aria-live','polite'); liveRegion.setAttribute('aria-atomic','true'); liveRegion.className='hidden-visually';
+      document.body.appendChild(liveRegion);
+
+      // Updated emoji pool
+      const EMOJI_POOL = ['🧺','🍮','🍫','🍬','🍦'];
+
+      function spawnItem(){
+        if(isPaused) return;
+        const emoji = EMOJI_POOL[Math.floor(Math.random() * EMOJI_POOL.length)];
+        const el = document.createElement('div');
+        el.className = 'falling-item';
+        el.textContent = emoji;
+        const leftPercent = 6 + Math.random() * 88;
+        el.style.left = leftPercent + '%';
+        el.style.top = '-40px';
+        gameArea.appendChild(el);
+        const speed = 1 + Math.random() * 1.3;
+        spawnedItems.push({ element: el, y: -40, speed: speed, caught: false });
+      }
+
+      function moveBasketTo(clientX){
+        const rect = gameArea.getBoundingClientRect();
+        let percent = ((clientX - rect.left) / rect.width) * 100;
+        if(percent < 6) percent = 6;
+        if(percent > 94) percent = 94;
+        basket.style.left = percent + '%';
+      }
+
+      function updateItems(){
+        if(isPaused) return;
+        const basketRect = basket.getBoundingClientRect();
+        spawnedItems.forEach(item => {
+          if(item.caught) return;
+          item.y += item.speed;
+          item.element.style.top = item.y + 'px';
+          const itemRect = item.element.getBoundingClientRect();
+          if(itemRect.bottom >= basketRect.top && itemRect.left < basketRect.right && itemRect.right > basketRect.left){
+            item.caught = true;
+            if(item.element.parentElement) item.element.parentElement.removeChild(item.element);
+            caughtCount++;
+            liveRegion.textContent = `You caught an item. ${TARGET_COUNT - caughtCount} items left.`;
+            updateProgressVisual();
+          } else if(item.y > gameArea.clientHeight + 40){
+            item.caught = true;
+            if(item.element.parentElement) item.element.parentElement.removeChild(item.element);
+          }
+        });
+        spawnedItems = spawnedItems.filter(it => !it.caught);
+        if(caughtCount >= TARGET_COUNT) endGame(true);
+      }
+
+      function updateProgressVisual(){
+        progressFill.style.width = (caughtCount / TARGET_COUNT * 100) + '%';
+        itemsLeftNode.textContent = Math.max(0, TARGET_COUNT - caughtCount);
+      }
+
+      function tick(){ updateItems(); rafId = requestAnimationFrame(tick); }
+
+      function startGame(){
+        isPaused = false; caughtCount = 0;
+        spawnedItems.forEach(it => { if(it.element && it.element.parentElement) it.element.parentElement.removeChild(it.element); });
+        spawnedItems = [];
+        updateProgressVisual();
+        basket.style.left = '50%';
+        if(spawnTimerId) clearInterval(spawnTimerId);
+        spawnTimerId = setInterval(spawnItem, 900);
+        if(rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(tick);
+        gameArea.addEventListener('mousemove', onMouseMove);
+        gameArea.addEventListener('touchmove', onTouchMove, { passive:true });
+        modal1Overlay.classList.remove('show');
+        continueTo2Btn.style.display = 'none';
+        restartLevel1Btn.style.display = 'none';
+      }
+
+      function pauseGame(){
+        isPaused = true;
+        if(spawnTimerId){ clearInterval(spawnTimerId); spawnTimerId=null; }
+        if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
+        gameArea.removeEventListener('mousemove', onMouseMove);
+        gameArea.removeEventListener('touchmove', onTouchMove);
+      }
+
+      function endGame(won){
+        pauseGame();
+        if(won){
+          modal1Overlay.classList.add('show');
+          setTimeout(()=>{ continueTo2Btn.style.display=''; }, 120);
+          window.unlockLevel2();
+          restartLevel1Btn.style.display='none';
+        } else {
+          modal1Overlay.classList.add('show');
+          continueTo2Btn.style.display='none';
+          restartLevel1Btn.style.display='';
+        }
+      }
+
+      function onMouseMove(e){ moveBasketTo(e.clientX); }
+      function onTouchMove(e){ if(e.touches && e.touches.length) moveBasketTo(e.touches[0].clientX); }
+
+      closeModal1Btn.addEventListener('click', ()=> modal1Overlay.classList.remove('show'));
+      continueTo2Btn.addEventListener('click', ()=>{ modal1Overlay.classList.remove('show'); window.showLevel(2); });
+      restartLevel1Btn.addEventListener('click', ()=>{ modal1Overlay.classList.remove('show'); startGame(); });
+
+      window.resetLevel1 = startGame;
+      window.pauseLevel1 = pauseGame;
+      startGame();
+    })();
+
+    /* ============================================================
+       LEVEL 2 — 5×5 color grid
+       ============================================================ */
+    (function(){
+      const palette = [
+        { id: 'pink',   className: 'c-pink',   emoji: '🐈' },  // sky blue
+        { id: 'green',  className: 'c-green',  emoji: '🍝' },  // sage mint
+        { id: 'blue',   className: 'c-blue',   emoji: '🍦' },  // teal mint
+        { id: 'purple', className: 'c-purple', emoji: '🍰' },  // lavender
+        { id: 'yellow', className: 'c-yellow', emoji: '🍮' }   // soft yellow
+      ];
+
+      const GRID_EL = document.getElementById('grid');
+      const TIMER_EL = document.getElementById('timer');
+      const SCORE_EL = document.getElementById('score');
+      const MESSAGE_EL = document.getElementById('message');
+      const MODAL2 = document.getElementById('modal2');
+      const CLOSE_MODAL2 = document.getElementById('closeModal2');
+      const CONTINUE_TO3_BTN = document.getElementById('continueTo3');
+      const RESTART_LEVEL2_BTN = document.getElementById('restartLevel2');
+
+      const COUNT_PER_COLOR = 5;
+
+      let deck = [];
+      let selectedColor = null;
+      let currentStreak = 0;
+      let score = 0;
+      let timeLeft = 60;
+      let timerInterval = null;
+
+      function makeCopies(val, n){ const a=[]; for(let i=0;i<n;i++) a.push(val); return a; }
+      function shuffleArray(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+      function generateDeck(){
+        let temp = [];
+        for(let i=0;i<palette.length;i++) temp = temp.concat(makeCopies(palette[i].id, COUNT_PER_COLOR));
+        shuffleArray(temp); return temp;
+      }
+
+      function createCardElement(colorId, idx){
+        const pi = palette.find(p=>p.id===colorId);
+        const card = document.createElement('div');
+        card.className = 'card ' + pi.className;
+        card.dataset.color = colorId; card.dataset.index = idx;
+        card.setAttribute('role','button'); card.tabIndex=0;
+        card.textContent = pi.emoji;
+        card.addEventListener('click', onCardClicked);
+        card.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); onCardClicked.call(card,e); } });
+        return card;
+      }
+
+      function renderGrid(){
+        GRID_EL.innerHTML=''; GRID_EL.style.gridTemplateColumns='repeat(5,1fr)';
+        for(let i=0;i<deck.length;i++) GRID_EL.appendChild(createCardElement(deck[i],i));
+        SCORE_EL.textContent = score;
+      }
+
+      function resetAndStartLevel2(){
+        deck=generateDeck(); selectedColor=null; currentStreak=0; score=0; timeLeft=60;
+        MESSAGE_EL.textContent='Select cards of the same color in a row!';
+        SCORE_EL.textContent=score; TIMER_EL.textContent=timeLeft;
+        renderGrid(); RESTART_LEVEL2_BTN.style.display='none';
+        startTimer(); MODAL2.classList.remove('show'); CONTINUE_TO3_BTN.style.display='none';
+      }
+
+      function startTimer(){
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(function(){
+          timeLeft--; TIMER_EL.textContent=timeLeft;
+          if(timeLeft<=0){ clearInterval(timerInterval); timerInterval=null; finishLevel2(false); }
+        }, 1000);
+      }
+
+      function onCardClicked(e){
+        const cardEl = (this instanceof Element) ? this : e.currentTarget;
+        if(cardEl.classList.contains('matched')) return;
+        const clickedColor = cardEl.dataset.color;
+        if(selectedColor===null){
+          selectedColor=clickedColor; currentStreak=1; score+=1;
+          cardEl.classList.add('matched');
+          MESSAGE_EL.textContent=`Good start! Keep clicking ${clickedColor} cards!`;
+        } else if(clickedColor===selectedColor){
+          currentStreak++; score+=currentStreak; cardEl.classList.add('matched');
+          MESSAGE_EL.textContent=`Nice! ${currentStreak} in a row!`;
+        } else {
+          selectedColor=clickedColor; currentStreak=1; score+=1;
+          GRID_EL.querySelectorAll('.card.matched').forEach(c=>c.classList.remove('matched'));
+          cardEl.classList.add('matched');
+          MESSAGE_EL.textContent=`Switched! Streak reset.`;
+        }
+        SCORE_EL.textContent=score;
+        checkAndAutoRemoveColor(clickedColor);
+      }
+
+      function checkAndAutoRemoveColor(colorId){
+        const all = Array.from(GRID_EL.querySelectorAll('.card[data-color="'+colorId+'"]'));
+        if(!all.length) return;
+        if(all.every(c=>c.classList.contains('matched'))){
+          all.forEach(c=>c.classList.add('fade-out'));
+          setTimeout(function(){
+            GRID_EL.querySelectorAll('.card.fade-out').forEach(function(node){
+              const idx = deck.findIndex(v=>v===node.dataset.color);
+              if(idx!==-1) deck.splice(idx,1);
+              if(node.parentElement) node.parentElement.removeChild(node);
+            });
+            if(deck.length===0) finishLevel2(true);
+            else reRenderAfterRemovals();
+          }, 280);
+        }
+      }
+
+      function reRenderAfterRemovals(){
+        const prev = selectedColor; const prevStr = currentStreak;
+        GRID_EL.innerHTML='';
+        for(let i=0;i<deck.length;i++) GRID_EL.appendChild(createCardElement(deck[i],i));
+        SCORE_EL.textContent=score; selectedColor=prev; currentStreak=prevStr;
+      }
+
+      function finishLevel2(won){
+        if(timerInterval){ clearInterval(timerInterval); timerInterval=null; }
+        Array.from(GRID_EL.querySelectorAll('.card')).forEach(c=>c.style.pointerEvents='none');
+        if(won){
+          MODAL2.style.display=''; MODAL2.classList.add('show');
+          setTimeout(()=>{ CONTINUE_TO3_BTN.style.display=''; }, 120);
+          if(window.unlockLevel3) window.unlockLevel3();
+          RESTART_LEVEL2_BTN.style.display='none';
+        } else {
+          MESSAGE_EL.textContent='Time is up! Try again!';
+          RESTART_LEVEL2_BTN.style.display='';
+        }
+      }
+
+      CLOSE_MODAL2.addEventListener('click', ()=> MODAL2.classList.remove('show'));
+      CONTINUE_TO3_BTN.addEventListener('click', ()=>{ MODAL2.classList.remove('show'); window.showLevel(3); });
+      RESTART_LEVEL2_BTN.addEventListener('click', ()=> resetAndStartLevel2());
+
+      window.resetLevel2 = resetAndStartLevel2;
+      window.pauseLevel2 = function(){ if(timerInterval){clearInterval(timerInterval);timerInterval=null;} Array.from(GRID_EL.querySelectorAll('.card')).forEach(c=>c.style.pointerEvents='none'); };
+      deck = generateDeck();
+    })();
+
+    /* ============================================================
+       LEVEL 3 — memory sets
+       ============================================================ */
+    (function(){
+      const TIME_LIMIT_3 = 25;
+      const MEMO_TIME = 5;
+      const SET_SIZE = 3;
+      const TOTAL_SETS = 3;
+
+      const cardsData = [
+        { id:1, color:'pink3', emoji:'🐈' },
+        { id:2, color:'pink3', emoji:'🐈' },
+        { id:3, color:'pink3', emoji:'🐈' },
+        { id:4, color:'blue3', emoji:'🍝' },
+        { id:5, color:'blue3', emoji:'🍝' },
+        { id:6, color:'blue3', emoji:'🍝' },
+        { id:7, color:'green3', emoji:'🍦' },
+        { id:8, color:'green3', emoji:'🍦' },
+        { id:9, color:'green3', emoji:'🍦' }
+      ];
+
+      const gameGrid = document.getElementById('gameGrid');
+      const timerDisplay = document.getElementById('timerDisplay');
+      const infoText3 = document.getElementById('infoText3');
+      const modal3Overlay = document.getElementById('modal3');
+      const closeModalBtn3 = document.getElementById('closeModal3');
+      const restartLevel3Btn = document.getElementById('restartLevel3');
+
+      let cards = [];
+      let flippedCards = [];
+      let foundSets = 0;
+      let timer3 = TIME_LIMIT_3;
+      let timer3Id = null;
+      let lockClicks = false;
+      let game3Started = false;
+
+      function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+      function createCard3(d, pos){
+        const card = document.createElement('div');
+        card.className='card-small'; card.tabIndex=0;
+        card.dataset.id=d.id; card.dataset.color=d.color; card.dataset.emoji=d.emoji; card.dataset.position=pos;
+        const inner = document.createElement('div');
+        inner.className='card-inner '+d.color; inner.textContent=d.emoji;
+        card.appendChild(inner);
+        card.addEventListener('click', function(){
+          if(!game3Started||lockClicks||card.classList.contains('matched')||card.classList.contains('flipped')) return;
+          flipCard(card);
+        });
+        card.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); card.click(); } });
+        return card;
+      }
+
+      function showEmoji(card){ const i=card.firstElementChild; i.className='card-inner '+card.dataset.color; i.textContent=card.dataset.emoji; }
+      function showHidden(card){ const i=card.firstElementChild; i.className='card-inner beige3'; i.textContent=''; }
+
+      function flipCard(card){ showEmoji(card); card.classList.add('flipped'); flippedCards.push(card); if(flippedCards.length===SET_SIZE) checkSet(); }
+
+      function checkSet(){
+        lockClicks=true;
+        const emojis=flippedCards.map(c=>c.dataset.emoji);
+        if(emojis.every(e=>e===emojis[0])){
+          flippedCards.forEach(c=>c.classList.add('matched'));
+          foundSets++; infoText3.textContent=`Good job! Sets found: ${foundSets} / ${TOTAL_SETS}`;
+          flippedCards=[]; lockClicks=false;
+          if(foundSets===TOTAL_SETS) endGame3(true);
+        } else {
+          setTimeout(()=>{
+            flippedCards.forEach(c=>{ if(!c.classList.contains('matched')){ showHidden(c); c.classList.remove('flipped'); } });
+            flippedCards=[]; lockClicks=false;
+            infoText3.textContent=`Find all 3 sets! Found: ${foundSets} / ${TOTAL_SETS}`;
+          }, 900);
+        }
+      }
+
+      function shufflePositions(){
+        let pos=[...Array(cards.length).keys()]; shuffle(pos);
+        cards.forEach((c,i)=>c.dataset.position=pos[i]);
+        cards.sort((a,b)=>a.dataset.position-b.dataset.position);
+        gameGrid.innerHTML=''; cards.forEach(c=>gameGrid.appendChild(c));
+      }
+
+      function startTimer3(){
+        timer3=TIME_LIMIT_3; timerDisplay.textContent=`Time Left: ${timer3}s`;
+        if(timer3Id) clearInterval(timer3Id);
+        timer3Id=setInterval(function(){
+          timer3--; timerDisplay.textContent=`Time Left: ${timer3}s`;
+          if(timer3<=0){ clearInterval(timer3Id); endGame3(false); }
+        }, 1000);
+      }
+
+      function endGame3(won){
+        game3Started=false;
+        if(timer3Id){ clearInterval(timer3Id); timer3Id=null; }
+        if(won){
+          infoText3.textContent='You found all sets!';
+          modal3Overlay.classList.add('show');
+          restartLevel3Btn.style.display='none';
+          setTimeout(()=>{ showFinalStage(); }, 600);
+        } else {
+          infoText3.textContent="Oops, time's up! Try again!";
+          setTimeout(()=>{ restartLevel3Btn.style.display=''; }, 100);
+        }
+      }
+
+      async function initGame3(){
+        infoText3.textContent='Memorize the emojis!';
+        timerDisplay.textContent=`Time Left: ${TIME_LIMIT_3}s`;
+        foundSets=0; flippedCards=[]; game3Started=false; lockClicks=true;
+        gameGrid.innerHTML='';
+        cards=cardsData.map((d,i)=>createCard3(d,i));
+        cards.forEach(c=>{ showEmoji(c); c.classList.remove('matched','flipped'); gameGrid.appendChild(c); });
+        await new Promise(r=>setTimeout(r, MEMO_TIME*1000));
+        cards.forEach(c=>{ showHidden(c); c.classList.remove('matched','flipped'); });
+        shufflePositions(); lockClicks=false; game3Started=true;
+        infoText3.textContent='Find all 3 sets! Found: 0 / 3';
+        startTimer3();
+      }
+
+      closeModalBtn3.addEventListener('click', ()=> modal3Overlay.classList.remove('show'));
+      restartLevel3Btn.addEventListener('click', ()=>{ restartLevel3Btn.style.display='none'; initGame3(); });
+      window.resetLevel3 = initGame3;
+    })();
+
+    /* ============================================================
+       FINAL STAGE
+       ============================================================ */
+    (function(){
+      const overlay = document.getElementById('finalStageOverlay');
+      const finalImage = document.getElementById('finalImage');
+      const finalLetterBox = document.getElementById('finalLetterBox');
+
+      let clickCount = 0;
+      const CLICK_TARGET = 20;
+      let petalsInterval = null;
+
+      window.showFinalStage = function(){
+        overlay.style.display='flex'; overlay.setAttribute('aria-hidden','false');
+        try{ window.playGameMusic(); } catch(e){}
+        spawnPetalBurst(6);
+      };
+
+      finalImage.addEventListener('click', function(ev){
+        const x=ev.clientX, y=ev.clientY;
+        spawnHeartAt(x,y); clickCount++;
+        if(clickCount>=CLICK_TARGET) revealLetter();
+      });
+
+      function spawnHeartAt(cx,cy){
+        const heart=document.createElement('div');
+        heart.className='heart-effect'; heart.textContent='🤍';
+        heart.style.left=cx+'px'; heart.style.top=cy+'px';
+        document.body.appendChild(heart);
+        setTimeout(()=>{ if(heart.parentElement) heart.parentElement.removeChild(heart); }, 1000);
+      }
+
+      const LETTER_TEXT =
+`not gonna lie, I still cant believe it's already been one month with you. a reminder of how love exists in so many beautiful forms. In all of them, I love you more than any words can say ael
+
+across all versions of my life, I'd still choose you every single time. with every day that passes, we're one step closer to closing the distance. here's to our enduring love and all the adventures that await us, I love you to the fullest
+
+like every grain of sand on the shore, and even that would still be only 0.01% of my love for you sayang
+
+─ K`;
+
+      function revealLetter(){
+        if(finalLetterBox.style.display==='block') return;
+        finalImage.style.pointerEvents='none'; finalImage.style.opacity='0.5';
+        finalLetterBox.style.display='block'; finalLetterBox.focus();
+        typeWriter(LETTER_TEXT, finalLetterBox, 60, function(){
+          spawnPetalBurst(16);
+          if(!petalsInterval) petalsInterval=setInterval(()=>spawnPetalBurst(2), 500);
+        });
+      }
+
+      function typeWriter(text, element, speed, onDone){
+        element.textContent='';
+        const caret=document.createElement('span'); caret.className='typewriter-caret'; element.appendChild(caret);
+        let i=0;
+        function step(){
+          if(i<text.length){ caret.insertAdjacentText('beforebegin', text.charAt(i)); i++; element.scrollTop=element.scrollHeight; setTimeout(step, speed||40); }
+          else { if(typeof onDone==='function') onDone(); setTimeout(()=>caret.remove(), 800); }
+        }
+        step();
+      }
+
+      function spawnPetal(){
+        const petal=document.createElement('div'); petal.className='petal';
+        // Mix of soft nature emojis — cute but not exclusively pink/feminine
+        const emojis = ['🌸','❄️','🫧','⭐','🍃','✨'];
+        petal.textContent=emojis[Math.floor(Math.random()*emojis.length)];
+        petal.style.left=(Math.random()*100)+'vw';
+        const size=14+Math.random()*18; petal.style.fontSize=size+'px';
+        petal.style.opacity=(0.5+Math.random()*0.5).toString();
+        const dur=4+Math.random()*6; petal.style.animationDuration=dur+'s';
+        document.body.appendChild(petal);
+        setTimeout(()=>{ if(petal.parentElement) petal.parentElement.removeChild(petal); }, dur*1000+400);
+      }
+
+      function spawnPetalBurst(n){ for(let i=0;i<n;i++) setTimeout(spawnPetal, Math.random()*800); }
+      window.showFinalStage = window.showFinalStage || function(){};
+      window.spawnPetalBurst = spawnPetalBurst;
+    })();
+
+    /* close button safeguard */
+    document.querySelectorAll('.btn-close').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        const ov=btn.closest('.modal-overlay'); if(ov) ov.classList.remove('show');
+      });
+    });
+  </script>
+</body>
+</html>
